@@ -1,0 +1,51 @@
+name: alzcare_web
+description: AlzCare v2 — Alzheimer's AI Support System (Flutter Web)
+publish_to: 'none'
+version: 2.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Networking — works on web
+  http: ^1.2.1
+  socket_io_client: ^2.0.3+1
+
+  # Audio — web-compatible packages
+  # record package uses MediaRecorder API on web (no native code)
+  record: ^5.1.0
+  # just_audio uses Web Audio API on web
+  just_audio: ^0.9.38
+
+  # Date formatting
+  intl: ^0.19.0
+
+  # UI helpers
+  flutter_animate: ^4.5.0
+  cupertino_icons: ^1.0.6
+
+  # Web-specific: used to trigger browser audio playback from URL
+  # (replaces path_provider which is NOT available on web)
+  universal_html: ^2.2.4    # access window.Audio for web audio playback
+
+  # Charts for caregiver distress dashboard
+  fl_chart: ^0.68.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+
+# ─── Web Notes ────────────────────────────────────────────────────────────────
+# Packages NOT used (mobile-only, replaced for web):
+#   ✗ permission_handler  → browsers handle mic permission automatically via MediaRecorder
+#   ✗ path_provider       → no file system on web; audio handled via Blob URLs
+#   ✗ just_audio file path → replaced with just_audio URL streaming

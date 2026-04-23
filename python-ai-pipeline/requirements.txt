@@ -1,0 +1,49 @@
+# =============================================================
+#  AlzCare v2 — Python AI Pipeline  requirements.txt
+#  ✅  NO cmake  |  Pre-built wheels only
+# =============================================================
+
+# --- Web Framework ---
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+websockets==12.0
+
+# --- Faster-Whisper (CTranslate2 — no cmake, pre-built wheel) ---
+faster-whisper==1.0.3
+
+# --- Wav2Vec2 Emotion Classifier (ONNX runtime — no cmake) ---
+# transformers loads the model; onnxruntime runs inference without CUDA build
+transformers==4.41.2
+onnxruntime==1.18.0          # CPU-only ONNX runtime, zero cmake
+torch==2.3.0+cpu             --extra-index-url https://download.pytorch.org/whl/cpu
+torchaudio==2.3.0+cpu        --extra-index-url https://download.pytorch.org/whl/cpu
+
+# --- Signal Processing ---
+librosa==0.10.2
+soundfile==0.12.1
+numpy==1.26.4
+scipy==1.13.0
+
+# --- Sentence Embeddings (384-dim, MiniLM) ---
+sentence-transformers==3.0.1
+
+# --- Azure Cognitive Services TTS ---
+azure-cognitiveservices-speech==1.38.0
+
+# --- Local LLM — ctransformers (pre-built ctypes, NO cmake) ---
+ctransformers==0.2.27
+
+# --- HTTP client (calls Node.js backend) ---
+httpx==0.27.0
+
+# --- Utilities ---
+python-dotenv==1.0.1
+pydantic==2.7.1
+aiofiles==23.2.1
+loguru==0.7.2
+
+# =============================================================
+# Quick install (no cmake needed):
+#   pip install -r requirements.txt
+# =============================================================
