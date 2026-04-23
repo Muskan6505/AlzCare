@@ -44,6 +44,8 @@ router = APIRouter(tags=["AI Pipeline"])
 
 # In-process TTS audio cache (latest reply per patient_id)
 _tts_cache: dict[str, bytes] = {}
+_LLM_TIMEOUT_SECONDS = 25
+_TTS_TIMEOUT_SECONDS = 20
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -86,10 +88,35 @@ async def _call_node(method: str, path: str, payload: dict) -> dict:
                 resp = await client.post(url, json=payload)
             else:
                 resp = await client.get(url, params=payload)
-            return resp.json() if resp.status_code < 300 else {}
+            if resp.status_code < 300:
+                return resp.json()
+            logger.warning(
+                f"Node call returned {resp.status_code} [{method} {path}]: {resp.text[:200]}"
+            )
+            return {}
     except Exception as exc:
         logger.warning(f"Node call failed [{method} {path}]: {exc}")
         return {}
+
+
+def _fallback_reply(transcript: str, emotion: str, patient_name: str) -> str:
+    text = transcript.lower()
+    if "time" in text:
+        now = datetime.now().strftime("%I:%M %p").lstrip("0")
+        return f"It's {now}, {patient_name}. I'm right here with you."
+    if emotion in ("Agitated", "Fear"):
+        return f"You're safe, {patient_name}. Take a slow breath with me."
+    if emotion == "Sad":
+        return f"I hear you, {patient_name}. You're not alone. I'm with you."
+    return f"I'm here with you, {patient_name}. Tell me a little more."
+
+
+async def _run_blocking_with_timeout(func, *args, timeout: int):
+    loop = asyncio.get_event_loop()
+    return await asyncio.wait_for(
+        loop.run_in_executor(None, func, *args),
+        timeout=timeout,
+    )
 
 
 async def _dual_rag(embedding: list[float], patient_id: str) -> tuple[list, list]:
@@ -150,13 +177,32 @@ async def process_multimodal(
     patient_name = profile.get("name", "friend")
 
     # 6. LLM reply (dual-context)
-    llm_reply = await loop.run_in_executor(
-        None, generate_reply, transcript, emotion, long_memories, notes, patient_name
-    )
+    try:
+        llm_reply = await _run_blocking_with_timeout(
+            generate_reply,
+            transcript,
+            emotion,
+            long_memories,
+            notes,
+            patient_name,
+            timeout=_LLM_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        logger.warning(f"[{patient_id}] LLM fallback triggered: {exc}")
+        llm_reply = _fallback_reply(transcript, emotion, patient_name)
     logger.info(f"[{patient_id}] LLM: {llm_reply!r}")
 
     # 7. Azure TTS (emotion-adaptive SSML)
-    audio_bytes = await loop.run_in_executor(None, synthesise, llm_reply, emotion)
+    try:
+        audio_bytes = await _run_blocking_with_timeout(
+            synthesise,
+            llm_reply,
+            emotion,
+            timeout=_TTS_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        logger.warning(f"[{patient_id}] TTS fallback triggered: {exc}")
+        audio_bytes = b""
     _tts_cache[patient_id] = audio_bytes
 
     # 8. Persist distress log
@@ -190,7 +236,7 @@ async def process_multimodal(
         distress_flag=distress_flag,
         prosodic_state=prosodic["prosodic_state"],
         llm_reply=llm_reply,
-        audio_url=f"/tts-audio/{patient_id}",
+        audio_url=f"/tts-audio/{patient_id}" if audio_bytes else "",
         distress_log_id=log_id,
     )
 

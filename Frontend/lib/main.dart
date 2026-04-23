@@ -64,7 +64,37 @@ class _AlzCareWebAppState extends State<AlzCareWebApp> {
                   ),
       );
 
-  ThemeData _buildTheme() => ThemeData(
+  ThemeData _buildTheme() {
+    final typography = Typography.material2021(platform: TargetPlatform.windows);
+    final textTheme = typography.black.copyWith(
+      displayLarge: const TextStyle(
+        fontSize: 34,
+        fontWeight: FontWeight.w800,
+        color: AlzColors.textDark,
+      ),
+      headlineMedium: const TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        color: AlzColors.textDark,
+      ),
+      titleLarge: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        color: AlzColors.textDark,
+      ),
+      bodyLarge: const TextStyle(
+        fontSize: 18,
+        height: 1.6,
+        color: AlzColors.textDark,
+      ),
+      bodyMedium: const TextStyle(
+        fontSize: 16,
+        height: 1.5,
+        color: AlzColors.textDark,
+      ),
+    );
+
+    return ThemeData(
         useMaterial3: true,
         colorScheme: const ColorScheme.light(
           primary: AlzColors.navy,
@@ -73,18 +103,9 @@ class _AlzCareWebAppState extends State<AlzCareWebApp> {
           error: AlzColors.red,
         ),
         scaffoldBackgroundColor: AlzColors.warm,
-        fontFamily: 'Inter',
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w800,
-            color: AlzColors.textDark,
-          ),
-          headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-          titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          bodyLarge: TextStyle(fontSize: 18, height: 1.6),
-          bodyMedium: TextStyle(fontSize: 16, height: 1.5),
-        ),
+        typography: typography,
+        textTheme: textTheme,
+        primaryTextTheme: typography.white,
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AlzColors.navy,
@@ -114,4 +135,5 @@ class _AlzCareWebAppState extends State<AlzCareWebApp> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       );
+  }
 }

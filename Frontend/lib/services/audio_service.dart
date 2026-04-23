@@ -83,6 +83,7 @@ class AudioService {
 
   /// Play TTS audio reply from the Python pipeline by URL.
   Future<void> playFromUrl(String audioPath) async {
+    if (audioPath.trim().isEmpty) return;
     try {
       final url = audioPath.startsWith('http')
           ? audioPath
