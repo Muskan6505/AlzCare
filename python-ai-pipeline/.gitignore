@@ -44,3 +44,5 @@ models/
 
 # Misc
 *.sqlite3
+
+python-ai-pipeline/gguf_models/
