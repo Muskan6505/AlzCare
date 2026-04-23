@@ -1,11 +1,9 @@
-// flutter-app/lib/services/socket_service.dart
-// socket_io_client works on Flutter Web natively — no changes needed.
-// The package automatically selects websocket transport on web.
-
 import 'dart:async';
+
 import 'package:socket_io_client/socket_io_client.dart' as sio;
-import '../services/app_config.dart';
-import '../../../../models/models.dart';
+
+import '../models/models.dart';
+import 'app_config.dart';
 
 class SocketService {
   SocketService._();
@@ -19,20 +17,39 @@ class SocketService {
 
   void connectAsPatient(String patientId) {
     _connect();
+    _socket?.off('connect');
     _socket?.onConnect((_) {
       _socket?.emit('join_patient', {'patientId': patientId});
     });
+    if (isConnected) {
+      _socket?.emit('join_patient', {'patientId': patientId});
+    }
   }
 
   void connectAsCaregiver(String caregiverId, String patientId) {
     _connect();
+    _socket?.off('connect');
     _socket?.onConnect((_) {
-      _socket?.emit('join_caregiver', {'caregiverId': caregiverId, 'patientId': patientId});
+      _socket?.emit('join_caregiver', {
+        'caregiverId': caregiverId,
+        'patientId': patientId,
+      });
     });
+    if (isConnected) {
+      _socket?.emit('join_caregiver', {
+        'caregiverId': caregiverId,
+        'patientId': patientId,
+      });
+    }
   }
 
   void _connect() {
-    if (_socket != null && _socket!.connected) return;
+    if (_socket != null) {
+      if (_socket!.connected) return;
+      _socket!.connect();
+      return;
+    }
+
     _socket = sio.io(
       AppConfig.socketUrl,
       sio.OptionBuilder()
@@ -44,10 +61,10 @@ class SocketService {
           .build(),
     );
     _socket!
-      ..on('play_audio',      (d) => _emit(SocketEventType.playAudio,      d))
-      ..on('reminder_alert',  (d) => _emit(SocketEventType.reminderAlert,  d))
-      ..on('distress_alert',  (d) => _emit(SocketEventType.distressAlert,  d))
-      ..on('reminder_ack',    (d) => _emit(SocketEventType.reminderAck,    d))
+      ..on('play_audio', (d) => _emit(SocketEventType.playAudio, d))
+      ..on('reminder_alert', (d) => _emit(SocketEventType.reminderAlert, d))
+      ..on('distress_alert', (d) => _emit(SocketEventType.distressAlert, d))
+      ..on('reminder_ack', (d) => _emit(SocketEventType.reminderAck, d))
       ..connect();
   }
 
@@ -60,9 +77,14 @@ class SocketService {
     _socket?.emit('ack_reminder', {'patientId': patientId, 'reminderId': reminderId});
   }
 
-  void dispose() {
+  void disconnect() {
     _socket?.disconnect();
     _socket?.dispose();
+    _socket = null;
+  }
+
+  void dispose() {
+    disconnect();
     _eventController.close();
   }
 }

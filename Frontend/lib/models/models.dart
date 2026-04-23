@@ -29,6 +29,58 @@ class MultimodalResult {
   );
 }
 
+class PatientProfile {
+  final String patientId;
+  final String name;
+  final List<String> caregiverIds;
+
+  const PatientProfile({
+    required this.patientId,
+    required this.name,
+    required this.caregiverIds,
+  });
+
+  factory PatientProfile.fromJson(Map<String, dynamic> j) => PatientProfile(
+        patientId: j['patient_id'] ?? '',
+        name: j['name'] ?? '',
+        caregiverIds: List<String>.from(j['caregiver_ids'] ?? const []),
+      );
+}
+
+enum UserRole { patient, caregiver }
+
+class AppSession {
+  final UserRole role;
+  final String patientId;
+  final String patientName;
+  final String? caregiverId;
+
+  const AppSession({
+    required this.role,
+    required this.patientId,
+    required this.patientName,
+    this.caregiverId,
+  });
+
+  bool get isCaregiver => role == UserRole.caregiver;
+
+  Map<String, dynamic> toJson() => {
+        'role': role.name,
+        'patient_id': patientId,
+        'patient_name': patientName,
+        'caregiver_id': caregiverId,
+      };
+
+  factory AppSession.fromJson(Map<String, dynamic> j) => AppSession(
+        role: (j['role'] == UserRole.caregiver.name)
+            ? UserRole.caregiver
+            : UserRole.patient,
+        patientId: j['patient_id'] ?? '',
+        patientName: j['patient_name'] ?? '',
+        caregiverId: j['caregiver_id'],
+      );
+}
+
 class Reminder {
   final String id;
   final String patientId;

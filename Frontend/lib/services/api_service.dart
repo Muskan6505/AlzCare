@@ -13,6 +13,40 @@ class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
 
+  Future<PatientProfile?> fetchPatientProfile(String patientId) async {
+    try {
+      final resp = await http
+          .get(Uri.parse('${AppConfig.nodeBaseUrl}/api/patients/$patientId'))
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        return PatientProfile.fromJson(jsonDecode(resp.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<PatientProfile?> createPatientProfile({
+    required String patientId,
+    required String name,
+    List<String> caregiverIds = const [],
+  }) async {
+    try {
+      final resp = await http.post(
+        Uri.parse('${AppConfig.nodeBaseUrl}/api/patients'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'patient_id': patientId,
+          'name': name,
+          'caregiver_ids': caregiverIds,
+        }),
+      );
+      if (resp.statusCode == 201) {
+        return fetchPatientProfile(patientId);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // ── Python pipeline ────────────────────────────────────────────────────────
 
   /// Upload WAV bytes for full multimodal pipeline.

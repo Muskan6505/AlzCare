@@ -7,17 +7,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../models/models.dart';
-import '../../../../services/api_service.dart';
-import '../../../../services/app_config.dart';
-import '../../../../services/socket_service.dart';
-import '../../../../widgets/shared_widgets.dart';
+import '../models/models.dart';
+import '../services/api_service.dart';
+import '../services/socket_service.dart';
+import '../widgets/shared_widgets.dart';
 
 enum _CaregiverSection { reminders, notes, memories, distress }
 
 class CaregiverScreen extends StatefulWidget {
-  final VoidCallback onSwitchMode;
-  const CaregiverScreen({super.key, required this.onSwitchMode});
+  final AppSession session;
+  final VoidCallback onSignOut;
+
+  CaregiverScreen({
+    super.key,
+    required this.session,
+    required this.onSignOut,
+  }) : assert(session.caregiverId != null && session.caregiverId != '');
 
   @override
   State<CaregiverScreen> createState() => _CaregiverScreenState();
@@ -26,8 +31,8 @@ class CaregiverScreen extends StatefulWidget {
 class _CaregiverScreenState extends State<CaregiverScreen> {
   _CaregiverSection _section = _CaregiverSection.reminders;
 
-  final String _patientId   = AppConfig.demoPatientId;
-  final String _caregiverId = AppConfig.demoCaregiverId;
+  String get _patientId => widget.session.patientId;
+  String get _caregiverId => widget.session.caregiverId!;
 
   List<Reminder>      _reminders    = [];
   List<CaregiverNote> _notes        = [];
@@ -137,9 +142,9 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
         color: AlzColors.navy,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const SizedBox(height: 32),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Row(children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Row(children: [
               Icon(Icons.medical_services_rounded, color: Colors.white, size: 24),
               SizedBox(width: 10),
               Flexible(child: Text('AlzCare', style: TextStyle(
@@ -150,6 +155,38 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
             padding: EdgeInsets.only(left: 20, top: 4),
             child: Text('Caregiver Dashboard',
                 style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ),
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 18, 12, 0),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.session.patientName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Patient: $_patientId',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Caregiver: $_caregiverId',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           const Divider(color: Colors.white12, indent: 20, endIndent: 20),
@@ -178,8 +215,8 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
           const Spacer(),
           const Divider(color: Colors.white12, indent: 20, endIndent: 20),
           SideNavItem(
-            icon: Icons.person_outline, label: 'Patient View',
-            selected: false, onTap: widget.onSwitchMode,
+            icon: Icons.logout_rounded, label: 'Switch Account',
+            selected: false, onTap: widget.onSignOut,
           ),
           // Live alerts indicator
           if (_liveAlerts.isNotEmpty)
@@ -221,8 +258,8 @@ class _CaregiverScreenState extends State<CaregiverScreen> {
                 onPressed: _showAlertsPanel,
               ),
             TextButton(
-              onPressed: widget.onSwitchMode,
-              child: const Text('Patient', style: TextStyle(color: Colors.white70)),
+              onPressed: widget.onSignOut,
+              child: const Text('Switch', style: TextStyle(color: Colors.white70)),
             ),
           ],
         ),

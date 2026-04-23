@@ -10,16 +10,21 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
-import '../../../../models/models.dart';
-import '../../../../services/api_service.dart';
-import '../../../../services/app_config.dart';
-import '../../../../services/audio_service.dart';
-import '../../../../services/socket_service.dart';
-import '../../../../widgets/shared_widgets.dart';
+import '../models/models.dart';
+import '../services/api_service.dart';
+import '../services/audio_service.dart';
+import '../services/socket_service.dart';
+import '../widgets/shared_widgets.dart';
 
 class PatientScreen extends StatefulWidget {
-  final VoidCallback onSwitchMode;
-  const PatientScreen({super.key, required this.onSwitchMode});
+  final AppSession session;
+  final VoidCallback onSignOut;
+
+  const PatientScreen({
+    super.key,
+    required this.session,
+    required this.onSignOut,
+  });
 
   @override
   State<PatientScreen> createState() => _PatientScreenState();
@@ -27,6 +32,8 @@ class PatientScreen extends StatefulWidget {
 
 class _PatientScreenState extends State<PatientScreen>
     with TickerProviderStateMixin {
+  String get _patientId => widget.session.patientId;
+
   // State
   bool   _isRecording  = false;
   bool   _isProcessing = false;
@@ -62,7 +69,8 @@ class _PatientScreenState extends State<PatientScreen>
     _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeIn);
     _fadeCtrl.forward();
 
-    SocketService.instance.connectAsPatient(AppConfig.demoPatientId);
+    _status = 'Hello ${widget.session.patientName}, click the microphone and speak to me';
+    SocketService.instance.connectAsPatient(_patientId);
     _socketSub = SocketService.instance.eventStream.listen(_onSocketEvent);
   }
 
@@ -133,7 +141,7 @@ class _PatientScreenState extends State<PatientScreen>
     try {
       final result = await ApiService.instance.processMultimodal(
         audioBytes: audioBytes,
-        patientId:  AppConfig.demoPatientId,
+        patientId: _patientId,
       );
       if (result != null && mounted) {
         setState(() {
@@ -162,8 +170,8 @@ class _PatientScreenState extends State<PatientScreen>
     final id = _pendingReminderId;
     if (id == null) return;
     await ApiService.instance.acknowledgeReminder(
-        reminderId: id, patientId: AppConfig.demoPatientId);
-    SocketService.instance.emitReminderAck(AppConfig.demoPatientId, id);
+        reminderId: id, patientId: _patientId);
+    SocketService.instance.emitReminderAck(_patientId, id);
     setState(() { _activeReminder = null; _pendingReminderId = null; });
   }
 
@@ -215,9 +223,9 @@ class _PatientScreenState extends State<PatientScreen>
         color: AlzColors.navy,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const SizedBox(height: 32),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Row(children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Row(children: [
               Icon(Icons.favorite_rounded, color: Colors.white, size: 26),
               SizedBox(width: 10),
               Text('AlzCare AI',
@@ -229,12 +237,39 @@ class _PatientScreenState extends State<PatientScreen>
           SideNavItem(
               icon: Icons.mic_rounded, label: 'Speak',
               selected: true, onTap: () {}),
+          Container(
+            margin: const EdgeInsets.fromLTRB(12, 18, 12, 0),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.session.patientName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _patientId,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
           const Spacer(),
           SideNavItem(
-              icon: Icons.medical_services_outlined,
-              label: 'Caregiver Mode',
+              icon: Icons.logout_rounded,
+              label: 'Switch Account',
               selected: false,
-              onTap: widget.onSwitchMode),
+              onTap: widget.onSignOut),
           const SizedBox(height: 24),
         ]),
       );
@@ -306,14 +341,25 @@ class _PatientScreenState extends State<PatientScreen>
   Widget _buildTopBar() => Row(children: [
         const Icon(Icons.favorite_rounded, color: AlzColors.navy, size: 26),
         const SizedBox(width: 10),
-        const Text('AlzCare AI',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
-                color: AlzColors.navy)),
-        const Spacer(),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('AlzCare AI',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
+                      color: AlzColors.navy)),
+              Text(
+                widget.session.patientName,
+                style: const TextStyle(fontSize: 13, color: Colors.black45),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
         TextButton.icon(
-          onPressed: widget.onSwitchMode,
-          icon: const Icon(Icons.medical_services_outlined, size: 18),
-          label: const Text('Caregiver'),
+          onPressed: widget.onSignOut,
+          icon: const Icon(Icons.logout_rounded, size: 18),
+          label: const Text('Switch account'),
           style: TextButton.styleFrom(foregroundColor: AlzColors.navy),
         ),
       ]);
