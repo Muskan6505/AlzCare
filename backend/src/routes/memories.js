@@ -70,13 +70,12 @@ router.post('/search',
     body('embedding').isArray({ min: 1 }),
     body('patient_id').notEmpty(),
     body('topK').optional().isInt({ min: 1, max: 20 }),
-    body('minScore').optional().isFloat({ min: 0, max: 1 }),
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     try {
-      const { embedding, patient_id, topK = 3, minScore = 0 } = req.body;
+      const { embedding, patient_id, topK = 3 } = req.body;
       const pipeline = [
         {
           $vectorSearch: {
@@ -95,8 +94,7 @@ router.post('/search',
           },
         },
       ];
-      const memories = (await PatientMemory.aggregate(pipeline))
-        .filter((memory) => Number(memory.score || 0) >= Number(minScore));
+      const memories = await PatientMemory.aggregate(pipeline);
       res.json({ memories });
     } catch (err) {
       logger.warn(`Vector search (memories) failed: ${err.message}`);
