@@ -27,11 +27,6 @@ NODE_BACKEND_URL: str = os.getenv("NODE_BACKEND_URL", "http://localhost:4000")
 # RAG
 TOP_K_MEMORIES: int = int(os.getenv("TOP_K_MEMORIES", "3"))
 TOP_K_NOTES:    int = int(os.getenv("TOP_K_NOTES",    "2"))
-MEMORY_MIN_SCORE: float = float(os.getenv("MEMORY_MIN_SCORE", "0.72"))
-NOTE_MIN_SCORE: float = float(os.getenv("NOTE_MIN_SCORE", "0.68"))
-CONTEXT_SCORE_MARGIN: float = float(os.getenv("CONTEXT_SCORE_MARGIN", "0.08"))
-MAX_CONTEXT_MEMORIES: int = int(os.getenv("MAX_CONTEXT_MEMORIES", "2"))
-MAX_CONTEXT_NOTES: int = int(os.getenv("MAX_CONTEXT_NOTES", "2"))
 
 # Distress thresholds
 PITCH_AGITATION_THRESHOLD:  float = float(os.getenv("PITCH_AGITATION_THRESHOLD",  "600.0"))
