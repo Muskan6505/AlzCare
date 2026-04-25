@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import re
 from datetime import datetime
 from typing import Any, Optional
 
@@ -12,8 +13,13 @@ from loguru import logger
 from pydantic import BaseModel
 
 from utils.config import (
+    CONTEXT_SCORE_MARGIN,
     LLM_TIMEOUT_SECONDS,
+    MAX_CONTEXT_MEMORIES,
+    MAX_CONTEXT_NOTES,
+    MEMORY_MIN_SCORE,
     NODE_BACKEND_URL,
+    NOTE_MIN_SCORE,
     TOP_K_MEMORIES,
     TOP_K_NOTES,
 )
@@ -94,6 +100,62 @@ def _fallback_reply(transcript: str, emotion: str, patient_name: str) -> str:
 
 def _normalise_text(text: str) -> str:
     return " ".join(text.lower().strip().split())
+
+
+def _tokenize(text: str) -> set[str]:
+    return {
+        token for token in re.findall(r"[a-z0-9']+", _normalise_text(text))
+        if len(token) > 2
+    }
+
+
+def _overlap_ratio(query_tokens: set[str], candidate_text: str) -> float:
+    if not query_tokens:
+        return 0.0
+    candidate_tokens = _tokenize(candidate_text)
+    if not candidate_tokens:
+        return 0.0
+    return len(query_tokens & candidate_tokens) / len(query_tokens)
+
+
+def _filter_context_items(
+    items: list[dict],
+    transcript: str,
+    *,
+    text_key: str,
+    min_score: float,
+    score_margin: float,
+    max_items: int,
+) -> list[dict]:
+    if not items:
+        return []
+
+    query_tokens = _tokenize(transcript)
+    best_score = max(
+        (float(item.get("score", 0.0)) for item in items if isinstance(item.get("score"), (float, int))),
+        default=0.0,
+    )
+
+    kept: list[dict] = []
+    for item in items:
+        text_value = str(item.get(text_key, "")).strip()
+        if not text_value:
+            continue
+
+        vector_score = float(item.get("score", 0.0) or 0.0)
+        keyword_overlap = _overlap_ratio(query_tokens, text_value)
+        near_best = best_score > 0 and (best_score - vector_score) <= score_margin
+        good_overlap = keyword_overlap >= 0.2
+        good_vector = vector_score >= min_score
+
+        if good_vector or (near_best and good_overlap):
+            enriched = dict(item)
+            enriched["keyword_overlap"] = round(keyword_overlap, 3)
+            enriched["relevance"] = round(vector_score + (keyword_overlap * 0.1), 3)
+            kept.append(enriched)
+
+    kept.sort(key=lambda item: (item.get("relevance", 0.0), item.get("score", 0.0)), reverse=True)
+    return kept[:max_items]
 
 
 # ── Expanded fast-path detection ──────────────────────────────────────────────
@@ -193,10 +255,16 @@ async def _run_blocking_with_timeout(func, *args, timeout: int):
 
 async def _dual_rag(embedding: list[float], patient_id: str) -> tuple[list, list]:
     memories_task = _call_node("POST", "/api/memories/search", {
-        "embedding": embedding, "patient_id": patient_id, "topK": TOP_K_MEMORIES,
+        "embedding": embedding,
+        "patient_id": patient_id,
+        "topK": TOP_K_MEMORIES,
+        "minScore": MEMORY_MIN_SCORE,
     })
     notes_task = _call_node("POST", "/api/notes/search", {
-        "embedding": embedding, "patient_id": patient_id, "topK": TOP_K_NOTES,
+        "embedding": embedding,
+        "patient_id": patient_id,
+        "topK": TOP_K_NOTES,
+        "minScore": NOTE_MIN_SCORE,
     })
     # Run both RAG searches in parallel
     memories_resp, notes_resp = await asyncio.gather(memories_task, notes_task)
@@ -270,11 +338,43 @@ async def process_multimodal(
     try:
         embedding = await loop.run_in_executor(None, embed, transcript)
         long_memories, notes = await _dual_rag(embedding, patient_id)
+        long_memories = _filter_context_items(
+            long_memories,
+            transcript,
+            text_key="content",
+            min_score=MEMORY_MIN_SCORE,
+            score_margin=CONTEXT_SCORE_MARGIN,
+            max_items=MAX_CONTEXT_MEMORIES,
+        )
+        notes = _filter_context_items(
+            notes,
+            transcript,
+            text_key="note",
+            min_score=NOTE_MIN_SCORE,
+            score_margin=CONTEXT_SCORE_MARGIN,
+            max_items=MAX_CONTEXT_NOTES,
+        )
     except Exception as exc:
         logger.warning(f"[{patient_id}] Embed/RAG failed: {exc}")
         embedding, long_memories, notes = [], [], []
 
     logger.info(f"[{patient_id}] RAG → {len(long_memories)} memories, {len(notes)} notes")
+    if long_memories:
+        logger.info(
+            f"[{patient_id}] Memory context: "
+            + " | ".join(
+                f"{m.get('score', 0.0):.3f}:{str(m.get('content', ''))[:90]}"
+                for m in long_memories
+            )
+        )
+    if notes:
+        logger.info(
+            f"[{patient_id}] Note context: "
+            + " | ".join(
+                f"{n.get('score', 0.0):.3f}:{str(n.get('note', ''))[:90]}"
+                for n in notes
+            )
+        )
 
     # 4. LLM (with hard timeout for snappy responses)
     try:
