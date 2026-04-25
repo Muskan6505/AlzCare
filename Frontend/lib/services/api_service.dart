@@ -120,6 +120,33 @@ class ApiService {
     } catch (_) { return false; }
   }
 
+  Future<bool> snoozeReminder({
+    required String reminderId,
+    required String patientId,
+    int minutes = 10,
+  }) async {
+    try {
+      final resp = await http.post(
+        Uri.parse('${AppConfig.nodeBaseUrl}/api/reminders/$reminderId/snooze?patient_id=$patientId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'minutes': minutes}),
+      );
+      return resp.statusCode == 200;
+    } catch (_) { return false; }
+  }
+
+  Future<bool> dismissReminder({
+    required String reminderId,
+    required String patientId,
+  }) async {
+    try {
+      final resp = await http.post(
+        Uri.parse('${AppConfig.nodeBaseUrl}/api/reminders/$reminderId/dismiss?patient_id=$patientId'),
+      );
+      return resp.statusCode == 200;
+    } catch (_) { return false; }
+  }
+
   Future<bool> deleteReminder(String id, String patientId) async {
     try {
       final resp = await http.delete(

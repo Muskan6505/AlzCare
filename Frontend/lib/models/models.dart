@@ -89,22 +89,33 @@ class Reminder {
   final String frequency;
   final String status;
   final int    attempts;
+  final DateTime? snoozedUntil;
 
   const Reminder({
     required this.id, required this.patientId, required this.task,
     required this.time, required this.frequency, required this.status,
     required this.attempts,
+    this.snoozedUntil,
   });
 
-  factory Reminder.fromJson(Map<String, dynamic> j) => Reminder(
-    id:        j['_id']?.toString() ?? '',
-    patientId: j['patient_id']      ?? '',
-    task:      j['task']            ?? '',
-    time:      j['time']            ?? '',
-    frequency: j['frequency']       ?? 'daily',
-    status:    j['status']          ?? 'pending',
-    attempts:  (j['attempts']       ?? 0) as int,
-  );
+  factory Reminder.fromJson(Map<String, dynamic> j) {
+    DateTime? snoozedUntil;
+    try {
+      if (j['snoozed_until'] != null) {
+        snoozedUntil = DateTime.parse(j['snoozed_until'].toString());
+      }
+    } catch (_) {}
+    return Reminder(
+      id:        j['_id']?.toString() ?? '',
+      patientId: j['patient_id']      ?? '',
+      task:      j['task']            ?? '',
+      time:      j['time']            ?? '',
+      frequency: j['frequency']       ?? 'daily',
+      status:    j['status']          ?? 'pending',
+      attempts:  (j['attempts']       ?? 0) as int,
+      snoozedUntil: snoozedUntil,
+    );
+  }
 
   bool get isEscalated => status == 'escalated';
   bool get isCompleted => status == 'completed';
@@ -189,6 +200,7 @@ class SocketEvent {
   String get transcript   => data['transcript']    ?? '';
   String get reminderId   => data['reminderId']    ?? '';
   String get reminderText => data['reminderText']  ?? '';
+  String get time         => data['time']          ?? '';
   int    get attempts     => (data['attempts']     ?? 0) as int;
   int    get maxAttempts  => (data['maxAttempts']  ?? 3) as int;
 }

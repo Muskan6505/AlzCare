@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import io
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -32,7 +32,12 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 
-from utils.config import NODE_BACKEND_URL, TOP_K_MEMORIES, TOP_K_NOTES
+from utils.config import (
+    LLM_TIMEOUT_SECONDS,
+    NODE_BACKEND_URL,
+    TOP_K_MEMORIES,
+    TOP_K_NOTES,
+)
 from utils.distress_analyser import analyse_audio
 from utils.embedder import embed
 from utils.emotion import classify_emotion, is_distressed
@@ -44,7 +49,6 @@ router = APIRouter(tags=["AI Pipeline"])
 
 # In-process TTS audio cache (latest reply per patient_id)
 _tts_cache: dict[str, bytes] = {}
-_LLM_TIMEOUT_SECONDS = 25
 _TTS_TIMEOUT_SECONDS = 20
 
 
@@ -79,7 +83,7 @@ class TtsSpeakRequest(BaseModel):
 
 
 # ── Node backend helpers ──────────────────────────────────────────────────────
-async def _call_node(method: str, path: str, payload: dict) -> dict:
+async def _call_node(method: str, path: str, payload: dict) -> Any:
     """Generic helper to POST/GET the Node.js backend."""
     url = f"{NODE_BACKEND_URL}{path}"
     try:
@@ -109,6 +113,124 @@ def _fallback_reply(transcript: str, emotion: str, patient_name: str) -> str:
     if emotion == "Sad":
         return f"I hear you, {patient_name}. You're not alone. I'm with you."
     return f"I'm here with you, {patient_name}. Tell me a little more."
+
+
+def _normalise_text(text: str) -> str:
+    return " ".join(text.lower().strip().split())
+
+
+def _detect_fast_intent(transcript: str) -> Optional[str]:
+    text = _normalise_text(transcript)
+
+    reminder_phrases = (
+        "reminder",
+        "reminders",
+        "what do i need to do",
+        "what should i do now",
+        "what do i do now",
+        "need to do now",
+        "anything i need to do",
+    )
+    time_phrases = (
+        "what time",
+        "tell me the time",
+        "time now",
+        "current time",
+    )
+
+    if any(phrase in text for phrase in reminder_phrases):
+        return "reminder"
+    if any(phrase in text for phrase in time_phrases):
+        return "time"
+    return None
+
+
+def _is_reminder_active_today(reminder: dict, now: datetime) -> bool:
+    status = reminder.get("status", "pending")
+    if status not in {"pending", "escalated"}:
+        return False
+
+    frequency = reminder.get("frequency", "daily")
+    weekday = now.weekday()
+    if frequency == "weekdays" and weekday >= 5:
+        return False
+    if frequency == "weekends" and weekday < 5:
+        return False
+    return True
+
+
+def _minutes_until(reminder_time: str, now: datetime) -> Optional[int]:
+    try:
+        hour, minute = [int(part) for part in reminder_time.split(":", 1)]
+    except Exception:
+        return None
+
+    reminder_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return int((reminder_dt - now).total_seconds() // 60)
+
+
+def _build_reminder_reply(reminders: list[dict], patient_name: str, now: datetime) -> str:
+    active = [r for r in reminders if _is_reminder_active_today(r, now)]
+
+    if not active:
+        return f"You don't have any active reminders right now, {patient_name}."
+
+    enriched: list[tuple[dict, Optional[int]]] = [
+        (reminder, _minutes_until(reminder.get("time", ""), now))
+        for reminder in active
+    ]
+
+    due_now = [
+        reminder for reminder, delta in enriched
+        if delta is not None and -15 <= delta <= 15
+    ]
+    if due_now:
+        task = due_now[0].get("task", "your reminder")
+        return f"Yes, {patient_name}. Right now you need to {task}."
+
+    upcoming = sorted(
+        [
+            (reminder, delta) for reminder, delta in enriched
+            if delta is not None and delta > 15
+        ],
+        key=lambda item: item[1],
+    )
+    if upcoming:
+        reminder, _ = upcoming[0]
+        task = reminder.get("task", "your task")
+        time_str = reminder.get("time", "later today")
+        return f"Your next reminder is at {time_str}, {patient_name}. You need to {task}."
+
+    recent_overdue = sorted(
+        [
+            (reminder, delta) for reminder, delta in enriched
+            if delta is not None
+        ],
+        key=lambda item: abs(item[1]),
+    )
+    if recent_overdue:
+        reminder, _ = recent_overdue[0]
+        task = reminder.get("task", "your reminder")
+        time_str = reminder.get("time", "earlier today")
+        return f"You had a reminder at {time_str}, {patient_name}. It was to {task}."
+
+    return f"You have reminders saved, {patient_name}, but I couldn't read the next time clearly."
+
+
+async def _build_fast_reply(intent: str, patient_id: str, patient_name: str) -> str:
+    now = datetime.now()
+
+    if intent == "time":
+        current_time = now.strftime("%I:%M %p").lstrip("0")
+        return f"It's {current_time}, {patient_name}."
+
+    if intent == "reminder":
+        reminders = await _call_node("GET", "/api/reminders", {"patient_id": patient_id})
+        if isinstance(reminders, list):
+            return _build_reminder_reply(reminders, patient_name, now)
+        return f"I couldn't check your reminders right now, {patient_name}."
+
+    return f"I'm here with you, {patient_name}."
 
 
 async def _run_blocking_with_timeout(func, *args, timeout: int):
@@ -160,6 +282,36 @@ async def process_multimodal(
     transcript = await loop.run_in_executor(None, transcribe, wav_bytes)
     logger.info(f"[{patient_id}] Transcript: {transcript!r}")
 
+    # Fast path for simple patient questions that do not need the local LLM.
+    profile = await _call_node("GET", f"/api/patients/{patient_id}", {})
+    patient_name = profile.get("name", "friend")
+    fast_intent = _detect_fast_intent(transcript)
+    if fast_intent is not None:
+        llm_reply = await _build_fast_reply(fast_intent, patient_id, patient_name)
+        logger.info(f"[{patient_id}] Fast path [{fast_intent}] → {llm_reply!r}")
+        try:
+            audio_bytes = await _run_blocking_with_timeout(
+                synthesise,
+                llm_reply,
+                "Neutral",
+                timeout=_TTS_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            logger.warning(f"[{patient_id}] Fast-path TTS fallback triggered: {exc}")
+            audio_bytes = b""
+        _tts_cache[patient_id] = audio_bytes
+
+        return MultimodalResponse(
+            patient_id=patient_id,
+            transcript=transcript,
+            emotion="Neutral",
+            distress_flag=False,
+            prosodic_state="fast_path",
+            llm_reply=llm_reply,
+            audio_url=f"/tts-audio/{patient_id}" if audio_bytes else "",
+            distress_log_id=None,
+        )
+
     # 2. Wav2Vec2 emotion classification
     emotion = await loop.run_in_executor(None, classify_emotion, wav_bytes)
     logger.info(f"[{patient_id}] Emotion: {emotion}")
@@ -172,11 +324,7 @@ async def process_multimodal(
     long_memories, notes = await _dual_rag(embedding, patient_id)
     logger.info(f"[{patient_id}] RAG → {len(long_memories)} memories, {len(notes)} notes")
 
-    # 5. Fetch patient name from Node backend
-    profile = await _call_node("GET", f"/api/patients/{patient_id}", {})
-    patient_name = profile.get("name", "friend")
-
-    # 6. LLM reply (dual-context)
+    # 5. LLM reply (dual-context)
     try:
         llm_reply = await _run_blocking_with_timeout(
             generate_reply,
@@ -185,14 +333,16 @@ async def process_multimodal(
             long_memories,
             notes,
             patient_name,
-            timeout=_LLM_TIMEOUT_SECONDS,
+            timeout=LLM_TIMEOUT_SECONDS,
         )
     except Exception as exc:
-        logger.warning(f"[{patient_id}] LLM fallback triggered: {exc}")
+        logger.warning(
+            f"[{patient_id}] LLM fallback triggered: {exc.__class__.__name__}: {exc}"
+        )
         llm_reply = _fallback_reply(transcript, emotion, patient_name)
     logger.info(f"[{patient_id}] LLM: {llm_reply!r}")
 
-    # 7. Azure TTS (emotion-adaptive SSML)
+    # 6. Azure TTS (emotion-adaptive SSML)
     try:
         audio_bytes = await _run_blocking_with_timeout(
             synthesise,
@@ -205,7 +355,7 @@ async def process_multimodal(
         audio_bytes = b""
     _tts_cache[patient_id] = audio_bytes
 
-    # 8. Persist distress log
+    # 7. Persist distress log
     distress_flag = is_distressed(emotion)
     log_id = await _log_distress({
         "patient_id":    patient_id,
@@ -218,7 +368,7 @@ async def process_multimodal(
         "prosodicState": prosodic["prosodic_state"],
     })
 
-    # 9. Alert Node if high agitation
+    # 8. Alert Node if high agitation
     if distress_flag:
         logger.warning(f"[{patient_id}] DISTRESS — forwarding alert to Node")
         await _call_node("POST", "/api/alerts/agitation", {

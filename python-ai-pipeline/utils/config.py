@@ -11,6 +11,9 @@ AZURE_SPEECH_REGION: str = os.getenv("AZURE_SPEECH_REGION", "eastus")
 # LLM
 LLM_MODEL_PATH: str = os.getenv("LLM_MODEL_PATH", "./gguf_models/mistral-7b-instruct-v0.2.Q4_K_M.gguf")
 LLM_MODEL_TYPE: str = os.getenv("LLM_MODEL_TYPE", "mistral")
+LLM_CONTEXT_LENGTH: int = int(os.getenv("LLM_CONTEXT_LENGTH", "1024"))
+LLM_MAX_NEW_TOKENS: int = int(os.getenv("LLM_MAX_NEW_TOKENS", "96"))
+LLM_TIMEOUT_SECONDS: int = int(os.getenv("LLM_TIMEOUT_SECONDS", "60"))
 
 # Emotion model (Wav2Vec2 via HuggingFace / ONNX)
 EMOTION_MODEL: str = os.getenv("EMOTION_MODEL", "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition")

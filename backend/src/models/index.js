@@ -38,8 +38,9 @@ const ReminderSchema = new Schema({
   time:          { type: String, required: true },     // "HH:MM" 24-hour
   frequency:     { type: String, enum: ['daily', 'weekdays', 'weekends'], default: 'daily' },
   attempts:      { type: Number, default: 0 },
-  status:        { type: String, enum: ['pending', 'completed', 'escalated', 'paused'], default: 'pending' },
+  status:        { type: String, enum: ['pending', 'completed', 'escalated', 'paused', 'deleted'], default: 'pending' },
   last_notified: { type: Date, default: null },
+  snoozed_until: { type: Date, default: null },
 }, { timestamps: true, collection: 'Reminders' });
 
 // ── Distress_Logs ─────────────────────────────────────────────────────────────

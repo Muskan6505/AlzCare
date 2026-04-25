@@ -5,7 +5,12 @@ Local Mistral/LLaMA inference via ctransformers (pre-built ctypes — no cmake).
 from __future__ import annotations
 import os
 from loguru import logger
-from utils.config import LLM_MODEL_PATH, LLM_MODEL_TYPE
+from utils.config import (
+    LLM_CONTEXT_LENGTH,
+    LLM_MAX_NEW_TOKENS,
+    LLM_MODEL_PATH,
+    LLM_MODEL_TYPE,
+)
 
 _llm = None
 
@@ -19,7 +24,7 @@ def load_llm() -> None:
     logger.info(f"Loading LLM [{LLM_MODEL_TYPE}] …")
     _llm = AutoModelForCausalLM.from_pretrained(
         LLM_MODEL_PATH, model_type=LLM_MODEL_TYPE,
-        context_length=2048, max_new_tokens=180,
+        context_length=LLM_CONTEXT_LENGTH, max_new_tokens=LLM_MAX_NEW_TOKENS,
         temperature=0.7, top_p=0.9, repetition_penalty=1.1,
         local_files_only=True,
     )

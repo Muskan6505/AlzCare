@@ -233,13 +233,17 @@ class EmptyState extends StatelessWidget {
 // ── Persistent Nagger banner ───────────────────────────────────────────────────
 class ReminderBanner extends StatelessWidget {
   final String       task;
+  final String?      reminderText;
+  final String?      timeLabel;
   final int          attempts;
   final int          maxAttempts;
   final VoidCallback onAcknowledge;
+  final VoidCallback onSnooze;
   final VoidCallback onDismiss;
   const ReminderBanner({
     super.key, required this.task, required this.attempts,
-    required this.maxAttempts, required this.onAcknowledge, required this.onDismiss,
+    required this.maxAttempts, required this.onAcknowledge, required this.onSnooze,
+    required this.onDismiss, this.reminderText, this.timeLabel,
   });
 
   @override
@@ -284,6 +288,19 @@ class ReminderBanner extends StatelessWidget {
                     style: const TextStyle(
                         color: Colors.white, fontSize: 22,
                         fontWeight: FontWeight.w700, height: 1.3)),
+                if (timeLabel != null && timeLabel!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(timeLabel!,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                ],
+                if (reminderText != null && reminderText!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(reminderText!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 15, height: 1.5)),
+                ],
                 const SizedBox(height: 22),
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -311,6 +328,33 @@ class ReminderBanner extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onSnooze,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white38),
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      icon: const Icon(Icons.snooze_rounded),
+                      label: const Text('Snooze 10 min'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: onDismiss,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      icon: const Icon(Icons.notifications_off_outlined),
+                      label: const Text('Dismiss'),
+                    ),
+                  ),
+                ]),
               ]),
             ),
           ),

@@ -5,7 +5,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { Reminder } from '../models/index.js';
-import { acknowledgeReminder } from '../services/reminderEngine.js';
+import { acknowledgeReminder, dismissReminder } from '../services/reminderEngine.js';
 import { emitReminderAlert } from '../sockets/socketHub.js';
 import logger from '../../config/logger.js';
 
@@ -66,6 +66,7 @@ router.patch('/:id', async (req, res) => {
     if (updates.status === 'pending') {
       updates.attempts      = 0;
       updates.last_notified = null;
+      updates.snoozed_until = null;
     }
     const doc = await Reminder.findOneAndUpdate(
       { _id: req.params.id, patient_id },
@@ -93,6 +94,60 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     logger.error(`DELETE /reminders: ${err.message}`);
     res.status(500).json({ error: 'Failed to delete reminder.' });
+  }
+});
+
+// POST /api/reminders/:id/snooze?patient_id=X
+router.post('/:id/snooze', async (req, res) => {
+  try {
+    const { patient_id } = req.query;
+    if (!patient_id) return res.status(400).json({ error: 'patient_id required.' });
+
+    const snoozeMinutes = Math.min(
+      Math.max(parseInt(req.body?.minutes ?? '10', 10) || 10, 1),
+      120
+    );
+    const snoozedUntil = new Date(Date.now() + snoozeMinutes * 60_000);
+
+    const doc = await Reminder.findOneAndUpdate(
+      { _id: req.params.id, patient_id, status: { $in: ['pending', 'escalated'] } },
+      {
+        $set: {
+          status: 'pending',
+          last_notified: new Date(),
+          snoozed_until: snoozedUntil,
+        },
+      },
+      { new: true }
+    );
+
+    if (!doc) return res.status(404).json({ error: 'Reminder not found.' });
+    res.json({
+      snoozed: true,
+      reminderId: req.params.id,
+      snoozedUntil: snoozedUntil.toISOString(),
+      minutes: snoozeMinutes,
+    });
+  } catch (err) {
+    logger.error(`POST /reminders/snooze: ${err.message}`);
+    res.status(500).json({ error: 'Failed to snooze reminder.' });
+  }
+});
+
+// POST /api/reminders/:id/dismiss?patient_id=X
+router.post('/:id/dismiss', async (req, res) => {
+  try {
+    const { patient_id } = req.query;
+    if (!patient_id) return res.status(400).json({ error: 'patient_id required.' });
+
+    const reminder = await Reminder.findOne({ _id: req.params.id, patient_id });
+    if (!reminder) return res.status(404).json({ error: 'Reminder not found.' });
+
+    await dismissReminder(req.params.id);
+    res.json({ dismissed: true, reminderId: req.params.id });
+  } catch (err) {
+    logger.error(`POST /reminders/dismiss: ${err.message}`);
+    res.status(500).json({ error: 'Failed to dismiss reminder.' });
   }
 });
 
