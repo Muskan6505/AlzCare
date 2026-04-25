@@ -4,6 +4,7 @@ Local Mistral/LLaMA inference via ctransformers (pre-built ctypes — no cmake).
 """
 from __future__ import annotations
 import os
+from urllib import response
 from loguru import logger
 from utils.config import (
     LLM_CONTEXT_LENGTH,
@@ -77,5 +78,10 @@ def generate_reply(
             "Happy":    f"That's wonderful, {patient_name}! Tell me more!",
         }
         return fallbacks.get(emotion, f"I'm here with you, {patient_name}.")
+    
+    print("[LLM PROMPT]\n" + prompt + "\n[END PROMPT]")
+    print("Generating LLM response…", _llm)
 
-    return _llm(prompt).strip()
+    print("[LLM RESPONSE]", _llm(prompt), "[END RESPONSE]")
+    response = "".join(_llm(prompt))
+    return response.strip()
