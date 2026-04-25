@@ -1,6 +1,5 @@
 # =============================================================
 #  AlzCare v2 — Python AI Pipeline  requirements.txt
-#  ✅  NO cmake  |  Pre-built wheels only
 # =============================================================
 
 # --- Web Framework ---
@@ -27,6 +26,10 @@ scipy==1.13.0
 
 # --- Sentence Embeddings (384-dim, MiniLM) ---
 sentence-transformers==3.0.1
+
+# --- Gemini API (fast LLM replacement) ---
+google-generativeai==0.5.4
+
 
 # --- Azure Cognitive Services TTS ---
 azure-cognitiveservices-speech==1.38.0

@@ -1,36 +1,44 @@
 """
 python-ai-pipeline/utils/llm.py
-Local Mistral/LLaMA inference via ctransformers (pre-built ctypes — no cmake).
+Gemini-powered response generation (fast) + rule-based fallback
 """
 from __future__ import annotations
 import os
 from loguru import logger
-from utils.config import (
-    LLM_CONTEXT_LENGTH,
-    LLM_MAX_NEW_TOKENS,
-    LLM_MODEL_PATH,
-    LLM_MODEL_TYPE,
-)
+import google.generativeai as genai
 
-_llm = None
+_gemini_model = None
 
 
+# ============================================================
+# INIT GEMINI
+# ============================================================
 def load_llm() -> None:
-    global _llm
-    if not os.path.exists(LLM_MODEL_PATH):
-        logger.warning(f"LLM model not found at '{LLM_MODEL_PATH}'. Using rule-based fallback.")
+    global _gemini_model
+
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        logger.warning("GEMINI_API_KEY not found. Using fallback only.")
         return
-    from ctransformers import AutoModelForCausalLM
-    logger.info(f"Loading LLM [{LLM_MODEL_TYPE}] …")
-    _llm = AutoModelForCausalLM.from_pretrained(
-        LLM_MODEL_PATH, model_type=LLM_MODEL_TYPE,
-        context_length=LLM_CONTEXT_LENGTH, max_new_tokens=LLM_MAX_NEW_TOKENS,
-        temperature=0.7, top_p=0.9, repetition_penalty=1.1,
-        local_files_only=True,
-    )
-    logger.info("LLM ready ✅")
+
+    try:
+        # Safe configure (avoids Pylance warning)
+        getattr(genai, "configure")(api_key=api_key)
+
+        # ✅ BEST MODEL (fast + stable)
+        _gemini_model = genai.GenerativeModel("models/gemini-2.5-flash")
+
+        logger.info("Gemini initialized ✅")
+
+    except Exception as e:
+        logger.error(f"Gemini init failed: {e}")
+        _gemini_model = None
 
 
+# ============================================================
+# GENERATE REPLY
+# ============================================================
 def generate_reply(
     transcript: str,
     emotion: str,
@@ -38,44 +46,99 @@ def generate_reply(
     caregiver_notes: list[dict],
     patient_name: str = "friend",
 ) -> str:
-    """
-    Build a dual-source RAG prompt combining long-term Patient_Memories
-    and short-term Caregiver_Notes, then generate a compassionate reply.
-    """
+
+    # =========================
+    # 🔹 Build context
+    # =========================
     mem_ctx = "\n".join(
-        f"  • [{m.get('tags',['memory'])[0] if m.get('tags') else 'memory'}] {m.get('content','')}"
+        f"  • [{m.get('tags', ['memory'])[0]}] {m.get('content', '')}"
         for m in long_term_memories
     ) or "  (No long-term memories retrieved)"
 
     note_ctx = "\n".join(
-        f"  • [today's note] {n.get('note','')}"
+        f"  • [today's note] {n.get('note', '')}"
         for n in caregiver_notes
     ) or "  (No caregiver notes for today)"
 
+    # =========================
+    # 🔹 Emotion prefix
+    # =========================
     distress_prefix = ""
     if emotion in ("Agitated", "Fear"):
         distress_prefix = f"It's okay, {patient_name}. I'm right here with you. "
     elif emotion == "Sad":
         distress_prefix = f"I hear you, {patient_name}. You're not alone. "
 
-    prompt = (
-        f"<s>[INST] You are a warm, gentle assistant for {patient_name}, who has Alzheimer's.\n"
-        "Speak simply, kindly, and in very short sentences (1-3 sentences max).\n\n"
-        f"Long-term memories about {patient_name}:\n{mem_ctx}\n\n"
-        f"Today's caregiver notes:\n{note_ctx}\n\n"
-        f"{patient_name} just said: \"{transcript}\"\n"
-        f"Detected emotion: {emotion}\n\n"
-        f"{distress_prefix}Respond gently and simply: [/INST]"
-    )
+    # =========================
+    # 🔹 Prompt
+    # =========================
+    prompt = f"""
+You are a warm, gentle assistant for {patient_name}, who has Alzheimer's.
+Speak simply, kindly, and in very short sentences (1-3 sentences max).
 
-    if _llm is None:
-        fallbacks = {
-            "Agitated": f"It's okay, {patient_name}. I'm right here with you. Take a slow breath.",
-            "Fear":     f"You're safe, {patient_name}. I'm here and everything is alright.",
-            "Sad":      f"I hear you, {patient_name}. You're not alone — I'm with you.",
-            "Neutral":  f"I understand, {patient_name}. How can I help you today?",
-            "Happy":    f"That's wonderful, {patient_name}! Tell me more!",
-        }
-        return fallbacks.get(emotion, f"I'm here with you, {patient_name}.")
+Long-term memories:
+{mem_ctx}
 
-    return _llm(prompt).strip()
+Today's caregiver notes:
+{note_ctx}
+
+Patient said: "{transcript}"
+Emotion: {emotion}
+
+{distress_prefix}
+Respond gently and simply.
+"""
+
+    # ============================================================
+    # 🚀 GEMINI (PRIMARY)
+    # ============================================================
+    if _gemini_model:
+        try:
+            response = _gemini_model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.6,
+                    "max_output_tokens": 100,
+                }
+            )
+
+            text = _extract_text(response)
+
+            if text:
+                return text.strip()
+
+        except Exception as e:
+            logger.error(f"Gemini failed: {e}")
+
+    # ============================================================
+    # 🛟 RULE-BASED FALLBACK
+    # ============================================================
+    fallbacks = {
+        "Agitated": f"It's okay, {patient_name}. I'm right here with you. Take a slow breath.",
+        "Fear":     f"You're safe, {patient_name}. I'm here and everything is alright.",
+        "Sad":      f"I hear you, {patient_name}. You're not alone — I'm with you.",
+        "Neutral":  f"I understand, {patient_name}. How can I help you today?",
+        "Happy":    f"That's wonderful, {patient_name}! Tell me more!",
+    }
+
+    return fallbacks.get(emotion, f"I'm here with you, {patient_name}.")
+
+
+# ============================================================
+# 🔧 SAFE RESPONSE PARSER
+# ============================================================
+def _extract_text(response) -> str | None:
+    try:
+        if hasattr(response, "text") and response.text:
+            return response.text
+
+        if hasattr(response, "candidates"):
+            for c in response.candidates:
+                parts = getattr(c.content, "parts", [])
+                for p in parts:
+                    if hasattr(p, "text"):
+                        return p.text
+    except Exception as e:
+        logger.warning(f"Response parsing failed: {e}")
+
+    return None
