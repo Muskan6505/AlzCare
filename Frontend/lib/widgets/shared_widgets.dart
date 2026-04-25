@@ -1,9 +1,6 @@
 // flutter-app/lib/widgets/shared_widgets.dart
-// Web-optimised shared widgets.
-// Key web additions:
-//   • WebLayout — responsive sidebar for wide screens (desktop/tablet)
-//   • Hover effects via MouseRegion
-//   • Larger click targets and proper cursor styles
+// Redesigned: warmer palette, better reminder banner with snooze/dismiss,
+// improved cards, responsive helpers
 
 import 'package:flutter/material.dart';
 
@@ -11,7 +8,7 @@ class AlzColors {
   AlzColors._();
   static const navy     = Color(0xFF1A5276);
   static const ocean    = Color(0xFF2E86AB);
-  static const warm     = Color(0xFFF7F3EE);
+  static const warm     = Color(0xFFF5F0E8);
   static const amber    = Color(0xFFD68910);
   static const red      = Color(0xFFB03A2E);
   static const green    = Color(0xFF1D8348);
@@ -19,6 +16,8 @@ class AlzColors {
   static const grey     = Color(0xFFAAB7C4);
   static const softBlue = Color(0xFFD6EAF8);
   static const cardBg   = Color(0xFFFFFFFF);
+  static const sage     = Color(0xFF7DCEA0);
+  static const peach    = Color(0xFFF5CBA7);
 }
 
 Color emotionColor(String emotion) {
@@ -41,17 +40,16 @@ IconData emotionIcon(String emotion) {
   }
 }
 
-// ── Responsive breakpoints ─────────────────────────────────────────────────────
 bool isWideScreen(BuildContext ctx) => MediaQuery.of(ctx).size.width >= 900;
 bool isTablet(BuildContext ctx) => MediaQuery.of(ctx).size.width >= 600;
 
-// ── Web-style sidebar nav item ─────────────────────────────────────────────────
+// ── Sidebar nav item ───────────────────────────────────────────────────────────
 class SideNavItem extends StatefulWidget {
-  final IconData icon;
-  final String   label;
-  final bool     selected;
+  final IconData     icon;
+  final String       label;
+  final bool         selected;
   final VoidCallback onTap;
-  final int?     badgeCount;
+  final int?         badgeCount;
 
   const SideNavItem({
     super.key,
@@ -89,7 +87,7 @@ class _SideNavItemState extends State<SideNavItem> {
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: widget.selected
-                ? Border.all(color: Colors.white.withOpacity(0.3), width: 1)
+                ? Border.all(color: Colors.white.withOpacity(0.25), width: 1)
                 : null,
           ),
           child: Row(children: [
@@ -118,9 +116,7 @@ class _SideNavItemState extends State<SideNavItem> {
                 style: TextStyle(
                     color: widget.selected ? Colors.white : Colors.white70,
                     fontSize: 15,
-                    fontWeight: widget.selected
-                        ? FontWeight.w700
-                        : FontWeight.w500)),
+                    fontWeight: widget.selected ? FontWeight.w700 : FontWeight.w500)),
           ]),
         ),
       ),
@@ -128,11 +124,11 @@ class _SideNavItemState extends State<SideNavItem> {
   }
 }
 
-// ── Web card container ─────────────────────────────────────────────────────────
+// ── Card container ──────────────────────────────────────────────────────────────
 class AlzCard extends StatelessWidget {
-  final Widget child;
+  final Widget    child;
   final EdgeInsets? padding;
-  final Color? borderColor;
+  final Color?    borderColor;
   const AlzCard({super.key, required this.child, this.padding, this.borderColor});
 
   @override
@@ -141,23 +137,21 @@ class AlzCard extends StatelessWidget {
         padding: padding ?? const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AlzColors.cardBg,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-              color: borderColor?.withOpacity(0.35) ??
-                  Colors.black.withOpacity(0.07),
+              color: borderColor?.withOpacity(0.35) ?? Colors.black.withOpacity(0.07),
               width: borderColor != null ? 1.5 : 1),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2)),
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10, offset: const Offset(0, 3)),
           ],
         ),
         child: child,
       );
 }
 
-// ── Emotion chip ──────────────────────────────────────────────────────────────
+// ── Emotion chip ────────────────────────────────────────────────────────────────
 class EmotionChip extends StatelessWidget {
   final String emotion;
   const EmotionChip(this.emotion, {super.key});
@@ -166,21 +160,20 @@ class EmotionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = emotionColor(emotion);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+          color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(emotionIcon(emotion), size: 14, color: color),
-        const SizedBox(width: 5),
+        const SizedBox(width: 6),
         Text(emotion,
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
       ]),
     );
   }
 }
 
-// ── Status bubble ──────────────────────────────────────────────────────────────
+// ── Status bubble ────────────────────────────────────────────────────────────────
 class StatusBubble extends StatelessWidget {
   final String text;
   final Color  color;
@@ -188,23 +181,23 @@ class StatusBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 500),
         constraints: const BoxConstraints(maxWidth: 560),
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.07),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.3), width: 2),
+          color: color.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: color.withOpacity(0.25), width: 1.5),
         ),
         child: Text(text,
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 20, height: 1.45,
-                fontWeight: FontWeight.w500, color: color)),
+                fontSize: 19, height: 1.55,
+                fontWeight: FontWeight.w500, color: color.withOpacity(0.85))),
       );
 }
 
-// ── Empty state ────────────────────────────────────────────────────────────────
+// ── Empty state ──────────────────────────────────────────────────────────────────
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String   title;
@@ -216,145 +209,163 @@ class EmptyState extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(48),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 72, color: Colors.black12),
-            const SizedBox(height: 16),
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(icon, size: 40, color: Colors.black26),
+            ),
+            const SizedBox(height: 20),
             Text(title,
-                style: const TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w700, color: Colors.black38)),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.black38)),
             const SizedBox(height: 8),
             Text(subtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, color: Colors.black26)),
+                style: const TextStyle(fontSize: 15, color: Colors.black26, height: 1.5)),
           ]),
         ),
       );
 }
 
-// ── Persistent Nagger banner ───────────────────────────────────────────────────
+// ── ReminderBanner — used in caregiver screen and as standalone widget ───────────
+// (Patient screen uses its own inline reminder overlay for richer UX)
 class ReminderBanner extends StatelessWidget {
-  final String       task;
-  final String?      reminderText;
-  final String?      timeLabel;
-  final int          attempts;
-  final int          maxAttempts;
-  final VoidCallback onAcknowledge;
-  final VoidCallback onSnooze;
-  final VoidCallback onDismiss;
+  final String        task;
+  final String?       reminderText;
+  final String?       timeLabel;
+  final int           attempts;
+  final int           maxAttempts;
+  final VoidCallback  onAcknowledge;
+  final VoidCallback  onSnooze;
+  final VoidCallback  onDismiss;
+
   const ReminderBanner({
-    super.key, required this.task, required this.attempts,
-    required this.maxAttempts, required this.onAcknowledge, required this.onSnooze,
-    required this.onDismiss, this.reminderText, this.timeLabel,
+    super.key,
+    required this.task,
+    required this.attempts,
+    required this.maxAttempts,
+    required this.onAcknowledge,
+    required this.onSnooze,
+    required this.onDismiss,
+    this.reminderText,
+    this.timeLabel,
   });
 
   @override
   Widget build(BuildContext context) => Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 500),
           child: Material(
             color: Colors.transparent,
             child: Container(
               margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AlzColors.navy,
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8)),
+                      color: Colors.black.withOpacity(0.28),
+                      blurRadius: 40, offset: const Offset(0, 16)),
                 ],
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Row(children: [
-                  const Icon(Icons.alarm, color: Colors.white, size: 28),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Reminder ($attempts/$maxAttempts)',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
-                  ),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: onDismiss,
-                      child: const Icon(Icons.close, color: Colors.white54, size: 22),
+                // Header gradient
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF1A5276), Color(0xFF2E86AB)],
                     ),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   ),
-                ]),
-                const SizedBox(height: 14),
-                Text("It's time to $task",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 22,
-                        fontWeight: FontWeight.w700, height: 1.3)),
-                if (timeLabel != null && timeLabel!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(timeLabel!,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
-                ],
-                if (reminderText != null && reminderText!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(reminderText!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 15, height: 1.5)),
-                ],
-                const SizedBox(height: 22),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: onAcknowledge,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14)),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.check_circle_outline,
-                              color: AlzColors.navy, size: 24),
-                          SizedBox(width: 10),
-                          Text("Yes, I've done it!",
-                              style: TextStyle(
-                                  color: AlzColors.navy,
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w700)),
-                        ],
+                  child: Column(children: [
+                    Row(children: [
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: const Icon(Icons.alarm_rounded, color: Colors.white, size: 22),
                       ),
-                    ),
-                  ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('Time for a reminder',
+                              style: TextStyle(color: Colors.white70, fontSize: 13,
+                                  fontWeight: FontWeight.w500)),
+                          if (timeLabel != null && timeLabel!.isNotEmpty)
+                            Text(timeLabel!,
+                                style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        ]),
+                      ),
+                      // Progress dots
+                      Row(children: List.generate(maxAttempts, (i) => Container(
+                        width: 8, height: 8,
+                        margin: const EdgeInsets.only(left: 4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: i < attempts
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.3),
+                        ),
+                      ))),
+                    ]),
+                    const SizedBox(height: 16),
+                    Text("It's time to $task",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 22,
+                            fontWeight: FontWeight.w800, height: 1.2)),
+                    if (reminderText != null && reminderText!.isNotEmpty &&
+                        reminderText != task) ...[
+                      const SizedBox(height: 8),
+                      Text(reminderText!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5)),
+                    ],
+                  ]),
                 ),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onSnooze,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white38),
-                        minimumSize: const Size.fromHeight(48),
-                      ),
-                      icon: const Icon(Icons.snooze_rounded),
-                      label: const Text('Snooze 10 min'),
+
+                // Buttons
+                Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(children: [
+                    // Done button
+                    _ReminderActionBtn(
+                      onTap: onAcknowledge,
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF1D8348), Color(0xFF27AE60)]),
+                      shadowColor: const Color(0xFF1D8348),
+                      icon: Icons.check_circle_rounded,
+                      label: "Yes, I've done it!",
+                      fontSize: 18,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: onDismiss,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        minimumSize: const Size.fromHeight(48),
-                      ),
-                      icon: const Icon(Icons.notifications_off_outlined),
-                      label: const Text('Dismiss'),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: _OutlineBtn(
+                          icon: Icons.snooze_rounded,
+                          label: 'Snooze 10 min',
+                          color: AlzColors.navy,
+                          onTap: onSnooze)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _OutlineBtn(
+                          icon: Icons.notifications_off_rounded,
+                          label: 'Dismiss',
+                          color: AlzColors.grey,
+                          onTap: onDismiss)),
+                    ]),
+                    const SizedBox(height: 10),
+                    Text(
+                      'You can also say "Yes, I\'ve done it" to the microphone',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: Colors.black38, height: 1.4),
                     ),
-                  ),
-                ]),
+                  ]),
+                ),
               ]),
             ),
           ),
@@ -362,12 +373,111 @@ class ReminderBanner extends StatelessWidget {
       );
 }
 
-// ── Web text field ─────────────────────────────────────────────────────────────
+class _ReminderActionBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  final Gradient    gradient;
+  final Color       shadowColor;
+  final IconData    icon;
+  final String      label;
+  final double      fontSize;
+
+  const _ReminderActionBtn({
+    required this.onTap, required this.gradient, required this.shadowColor,
+    required this.icon, required this.label, this.fontSize = 16,
+  });
+
+  @override
+  State<_ReminderActionBtn> createState() => _ReminderActionBtnState();
+}
+
+class _ReminderActionBtnState extends State<_ReminderActionBtn> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTapDown:  (_) => setState(() => _pressed = true),
+          onTapUp:    (_) { setState(() => _pressed = false); widget.onTap(); },
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            scale: _pressed ? 0.97 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 17),
+              decoration: BoxDecoration(
+                gradient: widget.gradient,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.shadowColor.withOpacity(0.35),
+                    blurRadius: 16, offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(widget.icon, color: Colors.white, size: 24),
+                const SizedBox(width: 10),
+                Text(widget.label,
+                    style: TextStyle(color: Colors.white,
+                        fontSize: widget.fontSize, fontWeight: FontWeight.w800)),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+class _OutlineBtn extends StatefulWidget {
+  final IconData     icon;
+  final String       label;
+  final Color        color;
+  final VoidCallback onTap;
+  const _OutlineBtn({required this.icon, required this.label,
+      required this.color, required this.onTap});
+
+  @override
+  State<_OutlineBtn> createState() => _OutlineBtnState();
+}
+
+class _OutlineBtnState extends State<_OutlineBtn> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter:  (_) => setState(() => _hovered = true),
+        onExit:   (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            decoration: BoxDecoration(
+              color: _hovered ? widget.color.withOpacity(0.08) : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: widget.color.withOpacity(0.35), width: 1.5),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(widget.icon, color: widget.color, size: 20),
+              const SizedBox(height: 4),
+              Text(widget.label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: widget.color, fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+            ]),
+          ),
+        ),
+      );
+}
+
+// ── Web text field ──────────────────────────────────────────────────────────────
 class AlzTextField extends StatelessWidget {
   final TextEditingController controller;
-  final String label;
+  final String  label;
   final IconData icon;
-  final int maxLines;
+  final int     maxLines;
   final String? hint;
   const AlzTextField(this.controller, this.label, this.icon,
       {super.key, this.maxLines = 1, this.hint});
@@ -382,9 +492,9 @@ class AlzTextField extends StatelessWidget {
           hintText:  hint,
           labelStyle: const TextStyle(fontSize: 15),
           prefixIcon: Icon(icon, size: 20),
-          border:         OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          focusedBorder:  OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+          border:        OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
               borderSide: const BorderSide(color: AlzColors.navy, width: 2)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
