@@ -125,7 +125,6 @@ Create **two indexes** — one per collection:
 ```
 
 > **Important:** The `filter` field on `patient_id` enables the strict patient isolation used in all `$vectorSearch` queries.
-
 ---
 
 ## 2. Python AI Pipeline Setup
