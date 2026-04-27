@@ -309,7 +309,7 @@ async def process_multimodal(
             distress_flag=False,
             prosodic_state="fast_path",
             llm_reply=llm_reply,
-            audio_url=f"/tts-audio/{patient_id}" if audio_bytes else "",
+            audio_url=f"/tts-audio/{patient_id}?t={int(datetime.now(timezone.utc).timestamp())}" if audio_bytes else "",
             distress_log_id=None,
         )
 
@@ -361,7 +361,7 @@ async def process_multimodal(
     distress_flag = is_distressed(emotion)
     log_id = await _log_distress({
         "patient_id":    patient_id,
-        "timestamp":     datetime.utcnow().isoformat(),
+        "timestamp":     datetime.now(timezone.utc).isoformat(),
         "transcript":    transcript,
         "emotion":       emotion,
         "distressFlag":  distress_flag,
@@ -391,7 +391,7 @@ async def process_multimodal(
         distress_flag=distress_flag,
         prosodic_state=prosodic["prosodic_state"],
         llm_reply=llm_reply,
-        audio_url=f"/tts-audio/{patient_id}" if audio_bytes else "",
+        audio_url=f"/tts-audio/{patient_id}?t={int(datetime.now(timezone.utc).timestamp())}" if audio_bytes else "",
         distress_log_id=log_id,
     )
 
@@ -403,9 +403,15 @@ async def get_tts_audio(patient_id: str):
     if not audio:
         raise HTTPException(404, "No audio cached for this patient.")
     return StreamingResponse(
-        io.BytesIO(audio), media_type="audio/wav",
-        headers={"Content-Disposition": f"inline; filename={patient_id}_reply.wav"},
-    )
+        io.BytesIO(audio),
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f"inline; filename={patient_id}_reply.wav",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+    },
+)
 
 
 @router.post("/generate-reminder")
@@ -418,7 +424,7 @@ async def generate_reminder(body: ReminderRequest):
     loop = asyncio.get_event_loop()
 
     # Fetch patient name
-    profile      = await _call_node("GET", f"/api/patients/{body.patient_id}", {})
+    profile      = await _call_node("GET", f"/tts-audio/reminder_{body.patient_id}?t={int(datetime.now(timezone.utc).timestamp())}", {})
     patient_name = profile.get("name", "friend")
 
     text = (
