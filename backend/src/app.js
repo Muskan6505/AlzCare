@@ -1,6 +1,4 @@
 // backend-nodejs/src/app.js
-// Express application factory — routes, security middleware, CORS.
-
 import express  from 'express';
 import cors     from 'cors';
 import helmet   from 'helmet';
@@ -13,6 +11,7 @@ import remindersRouter from './routes/reminders.js';
 import distressRouter  from './routes/distress.js';
 import alertsRouter    from './routes/alerts.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import logger from '../config/logger.js';
 
 const app = express();
 
@@ -27,7 +26,39 @@ app.get('/health', (_req, res) =>
   res.json({ service: 'alzcare-backend-nodejs', version: '2.0.0', status: 'ok' })
 );
 
-// API routes — all patient-data routes enforce patient_id query or body param
+// ── Gemini proxy — called by Python pipeline ──────────────────────────────────
+app.post('/api/gemini', async (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    logger.error('GEMINI_API_KEY is not set in environment variables.');
+    return res.status(500).json({ error: 'Gemini API key not configured.' });
+  }
+
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  try {
+    const geminiResp = await fetch(geminiUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(req.body),
+    });
+
+    const data = await geminiResp.json();
+
+    if (!geminiResp.ok) {
+      logger.error(`Gemini API error ${geminiResp.status}: ${JSON.stringify(data)}`);
+      return res.status(geminiResp.status).json({ error: data });
+    }
+
+    return res.json(data);
+  } catch (err) {
+    logger.error(`Gemini proxy failed: ${err.message}`);
+    return res.status(500).json({ error: 'Failed to reach Gemini API.' });
+  }
+});
+
+// API routes
 app.use('/api/patients',  patientsRouter);
 app.use('/api/memories',  memoriesRouter);
 app.use('/api/notes',     notesRouter);

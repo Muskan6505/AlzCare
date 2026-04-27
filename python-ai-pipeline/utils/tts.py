@@ -41,19 +41,38 @@ def _build_ssml(text: str, emotion: str) -> str:
 
 
 def synthesise(text: str, emotion: str = "Neutral") -> bytes:
-    """Synthesise text → raw WAV bytes (16 kHz, 16-bit mono PCM)."""
-    cfg = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+    logger.info(f"TTS INPUT → {text} | emotion={emotion}")
+
+    cfg = speechsdk.SpeechConfig(
+        subscription=AZURE_SPEECH_KEY,
+        region=AZURE_SPEECH_REGION
+    )
+
     cfg.set_speech_synthesis_output_format(
         speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm
     )
-    stream       = speechsdk.audio.PullAudioOutputStream()
-    audio_cfg    = speechsdk.audio.AudioOutputConfig(stream=stream)
-    synthesiser  = speechsdk.SpeechSynthesizer(speech_config=cfg, audio_config=audio_cfg)
 
-    result = synthesiser.speak_ssml_async(_build_ssml(text, emotion)).get()
+    synthesiser = speechsdk.SpeechSynthesizer(
+        speech_config=cfg,
+        audio_config=None
+    )
+
+    ssml = _build_ssml(text, emotion)
+
+    result = synthesiser.speak_ssml_async(ssml).get()
+
+    if not result:
+        logger.error("TTS failed: No result returned")
+        return b""
+
     if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        logger.info(f"TTS done  [emotion={emotion}] ✅")
-        return result.audio_data
-    details = result.cancellation_details
-    logger.error(f"TTS failed: {details.reason} — {details.error_details}")
+        return result.audio_data or b""
+
+    if result.reason == speechsdk.ResultReason.Canceled:
+        details = result.cancellation_details
+        if details:
+            logger.error(f"TTS canceled: {details.reason} — {details.error_details}")
+        else:
+            logger.error("TTS canceled: No details available")
+
     return b""

@@ -327,13 +327,14 @@ async def process_multimodal(
 
     # 5. LLM reply (dual-context)
     try:
-        llm_reply = await _run_blocking_with_timeout(
-            generate_reply,
-            transcript,
-            emotion,
-            long_memories,
-            notes,
-            patient_name,
+        llm_reply = await asyncio.wait_for(
+            generate_reply(
+                transcript,
+                emotion,
+                long_memories,
+                notes,
+                patient_name,
+            ),
             timeout=LLM_TIMEOUT_SECONDS,
         )
     except Exception as exc:
