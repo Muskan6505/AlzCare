@@ -424,7 +424,7 @@ async def generate_reminder(body: ReminderRequest):
     loop = asyncio.get_event_loop()
 
     # Fetch patient name
-    profile      = await _call_node("GET", f"/tts-audio/reminder_{body.patient_id}?t={int(datetime.now(timezone.utc).timestamp())}", {})
+    profile      = await _call_node("GET", f"/api/patients/{body.patient_id}", {})
     patient_name = profile.get("name", "friend")
 
     text = (
@@ -439,7 +439,7 @@ async def generate_reminder(body: ReminderRequest):
     return {
         "patient_id": body.patient_id,
         "reminder_text": text,
-        "audio_url": f"/tts-audio/reminder_{body.patient_id}",
+        "audio_url": f"/tts-audio/reminder_{body.patient_id}?t={int(datetime.now(timezone.utc).timestamp())}",
     }
 
 
