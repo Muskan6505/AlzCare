@@ -235,9 +235,51 @@ export async function acknowledgeReminder(reminderId) {
   }
 }
 
+async function dailyResetTick() {
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun … 6=Sat
+
+    const frequenciesToReset = ['daily'];
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) frequenciesToReset.push('weekdays');
+    if (dayOfWeek === 0 || dayOfWeek === 6) frequenciesToReset.push('weekends');
+
+    const result = await Reminder.updateMany(
+      {
+        status:    { $in: ['completed', 'escalated'] },
+        frequency: { $in: frequenciesToReset },
+      },
+      {
+        $set: {
+          status:        'pending',
+          attempts:      0,
+          last_notified: null,
+          snoozed_until: null,
+        },
+      }
+    );
+
+    if (result.modifiedCount > 0) {
+      logger.info(`Daily reset: ${result.modifiedCount} reminder(s) set back to pending`);
+    }
+  } catch (err) {
+    logger.error(`dailyResetTick crashed: ${err.message}`);
+  }
+}
+
 export function startReminderEngine() {
   cron.schedule('* * * * *', reminderTick, { timezone: 'UTC' });
+  // Reset completed/escalated reminders at midnight UTC each day
+  cron.schedule('0 0 * * *', dailyResetTick, { timezone: 'UTC' });
   logger.info(
-    `Reminder engine started (every minute, max ${MAX_ATTEMPTS} attempts, re-nudge every ${REPEAT_MINUTES} min)`
+    `Reminder engine started (every minute, max ${MAX_ATTEMPTS} attempts, ` +
+    `re-nudge every ${REPEAT_MINUTES} min, daily reset at 00:00 UTC)`
   );
 }
+
+// export function startReminderEngine() {
+//   cron.schedule('* * * * *', reminderTick, { timezone: 'UTC' });
+//   logger.info(
+//     `Reminder engine started (every minute, max ${MAX_ATTEMPTS} attempts, re-nudge every ${REPEAT_MINUTES} min)`
+//   );
+// }
