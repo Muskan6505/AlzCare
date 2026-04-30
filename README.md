@@ -1,4 +1,4 @@
-# AlzCare v2 — "Compassionate Guardian"
+# AlzCare — "Compassionate Guardian"
 ## Alzheimer's AI Support System
 
 ```
